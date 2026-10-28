@@ -73,6 +73,7 @@ namespace ConsoleStoreApp
                 Console.WriteLine("3. Search a product");
                 Console.WriteLine("4. Update a product");
                 Console.WriteLine("5. Delete a product");
+                Console.WriteLine("6. List Products Grouped by Category");
                 Console.WriteLine("0. Back to Main Menu");
                 Console.Write("Select an option: ");
 
@@ -93,6 +94,9 @@ namespace ConsoleStoreApp
                         break;
                     case "5":
                         DeleteProduct();
+                        break;
+                    case "6":
+                        ListProductsGroupedByCategory();
                         break;
                     case "0":
                         back = true;
@@ -116,7 +120,10 @@ namespace ConsoleStoreApp
             decimal price = InputValidator.ReadNonNegativeDecimal("Enter Price: ");
             int quantity = InputValidator.ReadNonNegativeInt("Enter Quantity: ");
 
-            Product product = new Product(nextProductId++, name, price, quantity);
+            ProductCategory category = PromptCategory();
+
+            Product product = new Product(nextProductId++, name, price, quantity, category);
+
             products.Add(product);
             Console.WriteLine($"Product '{name}' added successfully with ID {product.Id}.");
         }
@@ -129,11 +136,11 @@ namespace ConsoleStoreApp
                 return;
             }
 
-            Console.WriteLine("\nID  | Name                 | Price      | Qty | Total Value");
-            Console.WriteLine("-----------------------------------------------------------");
+            Console.WriteLine("\nID  | Name                 | Category    | Price      | Qty | Total Value");
+            Console.WriteLine("-------------------------------------------------------------------------");
             foreach (var p in products)
             {
-                Console.WriteLine($"{p.Id,-3} | {p.Name,-20} | {p.Price,10:C} | {p.Quantity,3} | {p.TotalValue,11:C}");
+                Console.WriteLine($"{p.Id,-3} | {p.Name,-20} | {p.Category,-11} | {p.Price,10:C} | {p.Quantity,3} | {p.TotalValue,11:C}");
             }
 
             decimal totalInventoryValue = products.Sum(p => p.TotalValue);
@@ -164,11 +171,11 @@ namespace ConsoleStoreApp
             }
 
             Console.WriteLine($"\nFound {results.Count} matching product(s):");
-            Console.WriteLine("ID  | Name                 | Price      | Qty | Total Value");
-            Console.WriteLine("-----------------------------------------------------------");
-            foreach (var p in results)
+            Console.WriteLine("ID  | Name                 | Category    | Price      | Qty | Total Value");
+            Console.WriteLine("-------------------------------------------------------------------------");
+            foreach (var p in products)
             {
-                Console.WriteLine($"{p.Id,-3} | {p.Name,-20} | {p.Price,10:C} | {p.Quantity,3} | {p.TotalValue,11:C}");
+                Console.WriteLine($"{p.Id,-3} | {p.Name,-20} | {p.Category,-11} | {p.Price,10:C} | {p.Quantity,3} | {p.TotalValue,11:C}");
             }
         }
 
@@ -425,7 +432,7 @@ namespace ConsoleStoreApp
 
                 Console.WriteLine($"Added {qty} x {product.Name} to order.");
 
-                if (InputValidator.ReadConfirmation("Add another item? (y/n): "))
+                if (!InputValidator.ReadConfirmation("Add another item? (y/n): "))
                 {
                     addingItems = false;
                 }
@@ -464,6 +471,50 @@ namespace ConsoleStoreApp
                 Console.WriteLine($"------------------------------------------");
                 Console.WriteLine($"Total Order Amount: {order.TotalAmount:C}");
                 Console.WriteLine($"==========================================");
+            }
+        }
+
+        static ProductCategory PromptCategory()
+        {
+            Console.WriteLine("\nSelect Product Category:");
+            var categories = Enum.GetValues<ProductCategory>();
+
+            foreach (var cat in categories)
+            {
+                Console.WriteLine($"{(int)cat}. {cat}");
+            }
+
+            while (true)
+            {
+                int choice = InputValidator.ReadNonNegativeInt("Enter Category Number: ");
+                if (Enum.IsDefined(typeof(ProductCategory), choice))
+                {
+                    return (ProductCategory)choice;
+                }
+                Console.WriteLine("Invalid category selection. Please try again.");
+            }
+        }
+
+        static void ListProductsGroupedByCategory()
+        {
+            if (!products.Any())
+            {
+                Console.WriteLine("No products found.");
+                return;
+            }
+
+            // Grouping products by Category using LINQ GroupBy
+            var groupedProducts = products.GroupBy(p => p.Category);
+
+            foreach (var group in groupedProducts)
+            {
+                Console.WriteLine($"\n=== Category: {group.Key} ===");
+                Console.WriteLine("ID  | Name                 | Price      | Qty | Total Value");
+                Console.WriteLine("-----------------------------------------------------------");
+                foreach (var p in group)
+                {
+                    Console.WriteLine($"{p.Id,-3} | {p.Name,-20} | {p.Price,10:C} | {p.Quantity,3} | {p.TotalValue,11:C}");
+                }
             }
         }
     }
