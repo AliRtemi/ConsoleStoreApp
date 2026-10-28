@@ -9,6 +9,9 @@ namespace ConsoleStoreApp
 
         private static List<Customer> customers = new List<Customer>();
         private static int nextCustomerId = 1;
+
+        private static List<Order> orders = new List<Order>();
+        private static int nextOrderId = 1;
         static void Main(string[] args)
         {
             bool exitRequested = false;
@@ -40,7 +43,7 @@ namespace ConsoleStoreApp
                         ManageCustomers();
                         break;
                     case "3":
-                        Console.WriteLine("Order management feature coming soon...");
+                        ManageOrders();
                         break;
                     case "0":
                         Console.WriteLine("Thank you for using Console Store App. Goodbye!");
@@ -352,6 +355,154 @@ namespace ConsoleStoreApp
             foreach (var c in customers)
             {
                 Console.WriteLine($"{c.Id,-3} | {c.Name,-20} | {c.Email,-25} | {c.PhoneNumber}");
+            }
+        }
+
+        static void ManageOrders()
+        {
+            bool back = false;
+            while (!back)
+            {
+                Console.Clear();
+                Console.WriteLine("--- Order Management ---");
+                Console.WriteLine("1. Create New Order");
+                Console.WriteLine("2. List All Orders");
+                Console.WriteLine("0. Back to Main Menu");
+                Console.Write("Select an option: ");
+
+                string? choice = Console.ReadLine()?.Trim();
+                switch (choice)
+                {
+                    case "1":
+                        CreateOrder();
+                        break;
+                    case "2":
+                        ListOrders();
+                        break;
+                    case "0":
+                        back = true;
+                        break;
+                    default:
+                        Console.WriteLine("Invalid option.");
+                        break;
+                }
+
+                if (!back)
+                {
+                    Console.WriteLine("\nPress any key to continue...");
+                    Console.ReadKey();
+                }
+            }
+        }
+
+        static void CreateOrder()
+        {
+            if (!customers.Any())
+            {
+                Console.WriteLine("No customers found! Add a customer before creating an order.");
+                return;
+            }
+
+            if (!products.Any(p => p.Quantity > 0))
+            {
+                Console.WriteLine("No products in stock!");
+                return;
+            }
+
+            // Select Customer
+            Console.Write("Enter Customer ID for the order: ");
+            if (!int.TryParse(Console.ReadLine(), out int customerId))
+            {
+                Console.WriteLine("Invalid Customer ID.");
+                return;
+            }
+
+            Customer? customer = customers.FirstOrDefault(c => c.Id == customerId);
+            if (customer == null)
+            {
+                Console.WriteLine($"Customer with ID {customerId} not found.");
+                return;
+            }
+
+            Order newOrder = new Order(nextOrderId++, customer);
+            bool addingItems = true;
+
+            while (addingItems)
+            {
+                Console.Write("\nEnter Product ID to add to order (or 0 to finish): ");
+                if (!int.TryParse(Console.ReadLine(), out int productId) || productId == 0)
+                {
+                    break;
+                }
+
+                Product? product = products.FirstOrDefault(p => p.Id == productId);
+                if (product == null)
+                {
+                    Console.WriteLine("Product not found.");
+                    continue;
+                }
+
+                Console.Write($"Enter Quantity for '{product.Name}' (In stock: {product.Quantity}): ");
+                if (!int.TryParse(Console.ReadLine(), out int qty) || qty <= 0)
+                {
+                    Console.WriteLine("Invalid quantity.");
+                    continue;
+                }
+
+                // Business Rule: Check stock availability
+                if (qty > product.Quantity)
+                {
+                    Console.WriteLine($"Insufficient stock! Only {product.Quantity} available.");
+                    continue;
+                }
+
+                // Add item to order & reduce inventory stock
+                newOrder.Items.Add(new OrderItem(product, qty));
+                product.Quantity -= qty;
+
+                Console.WriteLine($"Added {qty} x {product.Name} to order.");
+
+                Console.Write("Add another item? (y/n): ");
+                string resp = Console.ReadLine()?.Trim().ToLower() ?? "";
+                if (resp != "y" && resp != "yes")
+                {
+                    addingItems = false;
+                }
+            }
+
+            if (newOrder.Items.Any())
+            {
+                orders.Add(newOrder);
+                Console.WriteLine($"\nOrder #{newOrder.Id} created successfully for {customer.Name}!");
+                Console.WriteLine($"Total Amount: {newOrder.TotalAmount:C}");
+            }
+            else
+            {
+                Console.WriteLine("Order cancelled (no items added).");
+            }
+        }
+
+        static void ListOrders()
+        {
+            if (!orders.Any())
+            {
+                Console.WriteLine("No orders placed yet.");
+                return;
+            }
+
+            foreach (var order in orders)
+            {
+                Console.WriteLine($"\n==========================================");
+                Console.WriteLine($"Order #{order.Id} | Date: {order.OrderDate:g}");
+                Console.WriteLine($"Customer: {order.Customer.Name} ({order.Customer.Email})");
+                Console.WriteLine($"------------------------------------------");
+                foreach (var item in order.Items)
+                {
+                    Console.WriteLine($"  - {item.Product.Name,-20} x{item.Quantity,-3} @ {item.UnitPrice,8:C} = {item.TotalPrice,9:C}");
+                }
+                Console.WriteLine($"------------------------------------------");
+                Console.WriteLine($"Total Order Amount: {order.TotalAmount:C}");
+                Console.WriteLine($"==========================================");
             }
         }
     }
