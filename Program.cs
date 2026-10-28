@@ -76,6 +76,15 @@ namespace ConsoleStoreApp
                     case "2":
                         ListProducts();
                         break;
+                    case "3": 
+                        SearchProducts();
+                        break;
+                    case "4":
+                        UpdateProduct();
+                        break;
+                    case "5":
+                        DeleteProduct();
+                        break;
                     case "0":
                         back = true;
                         break;
@@ -134,6 +143,113 @@ namespace ConsoleStoreApp
             decimal totalInventoryValue = products.Sum(p => p.TotalValue);
             Console.WriteLine("-----------------------------------------------------------");
             Console.WriteLine($"Total Inventory Value: {totalInventoryValue:C}");
+        }
+
+        static void SearchProducts()
+        {
+            Console.Write("Enter product ID or name to search: ");
+            string query = Console.ReadLine()?.Trim() ?? "";
+
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                Console.WriteLine("Search term cannot be empty.");
+                return;
+            }
+
+            // Search by ID or partial Name (case-insensitive)
+            var results = products.Where(p =>
+                p.Id.ToString() == query ||
+                p.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+            ).ToList();
+
+            if (!results.Any())
+            {
+                Console.WriteLine($"No products found matching '{query}'.");
+                return;
+            }
+
+            Console.WriteLine($"\nFound {results.Count} matching product(s):");
+            Console.WriteLine("ID  | Name                 | Price      | Qty | Total Value");
+            Console.WriteLine("-----------------------------------------------------------");
+            foreach (var p in results)
+            {
+                Console.WriteLine($"{p.Id,-3} | {p.Name,-20} | {p.Price,10:C} | {p.Quantity,3} | {p.TotalValue,11:C}");
+            }
+        }
+
+        static void UpdateProduct()
+        {
+            Console.Write("Enter Product ID to update: ");
+            if (!int.TryParse(Console.ReadLine(), out int id))
+            {
+                Console.WriteLine("Invalid Product ID.");
+                return;
+            }
+
+            Product? product = products.FirstOrDefault(p => p.Id == id);
+            if (product == null)
+            {
+                Console.WriteLine($"Product with ID {id} not found.");
+                return;
+            }
+
+            Console.WriteLine($"Updating '{product.Name}' (Press Enter to keep current value):");
+
+            // Update Name
+            Console.Write($"New Name [{product.Name}]: ");
+            string nameInput = Console.ReadLine()?.Trim() ?? "";
+            if (!string.IsNullOrWhiteSpace(nameInput))
+            {
+                product.Name = nameInput;
+            }
+
+            // Update Price
+            Console.Write($"New Price [{product.Price:C}]: ");
+            string priceInput = Console.ReadLine()?.Trim() ?? "";
+            if (!string.IsNullOrWhiteSpace(priceInput) && decimal.TryParse(priceInput, out decimal newPrice) && newPrice >= 0)
+            {
+                product.Price = newPrice;
+            }
+
+            // Update Quantity
+            Console.Write($"New Quantity [{product.Quantity}]: ");
+            string qtyInput = Console.ReadLine()?.Trim() ?? "";
+            if (!string.IsNullOrWhiteSpace(qtyInput) && int.TryParse(qtyInput, out int newQty) && newQty >= 0)
+            {
+                product.Quantity = newQty;
+            }
+
+            Console.WriteLine($"Product ID {id} updated successfully!");
+        }
+
+        static void DeleteProduct()
+        {
+            Console.Write("Enter Product ID to delete: ");
+            if (!int.TryParse(Console.ReadLine(), out int id))
+            {
+                Console.WriteLine("Invalid Product ID.");
+                return;
+            }
+
+            Product? product = products.FirstOrDefault(p => p.Id == id);
+            if (product == null)
+            {
+                Console.WriteLine($"Product with ID {id} not found.");
+                return;
+            }
+
+            Console.Write($"Are you sure you want to delete '{product.Name}'? (y/n): ");
+            string confirm = Console.ReadLine()?.Trim().ToLower() ?? "";
+
+            if (confirm == "y" || confirm == "yes")
+            {
+                products.Remove(product);
+                Console.WriteLine($"Product '{product.Name}' deleted successfully.");
+            }
+            else
+            {
+                Console.WriteLine("Deletion cancelled.");
+            }
         }
     }
 }
