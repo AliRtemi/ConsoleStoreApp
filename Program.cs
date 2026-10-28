@@ -70,6 +70,9 @@ namespace ConsoleStoreApp
                 Console.WriteLine("--- Product Management ---");
                 Console.WriteLine("1. Add Product");
                 Console.WriteLine("2. List All Products");
+                Console.WriteLine("3. Search a product");
+                Console.WriteLine("4. Update a product");
+                Console.WriteLine("5. Delete a product");
                 Console.WriteLine("0. Back to Main Menu");
                 Console.Write("Select an option: ");
 
@@ -109,22 +112,9 @@ namespace ConsoleStoreApp
 
         static void AddProduct()
         {
-            Console.Write("Enter Product Name: ");
-            string name = Console.ReadLine()?.Trim() ?? "";
-
-            Console.Write("Enter Price: ");
-            if (!decimal.TryParse(Console.ReadLine(), out decimal price) || price < 0)
-            {
-                Console.WriteLine("Invalid price!");
-                return;
-            }
-
-            Console.Write("Enter Quantity: ");
-            if (!int.TryParse(Console.ReadLine(), out int quantity) || quantity < 0)
-            {
-                Console.WriteLine("Invalid quantity!");
-                return;
-            }
+            string name = InputValidator.ReadNonEmptyString("Enter Product Name: ");
+            decimal price = InputValidator.ReadNonNegativeDecimal("Enter Price: ");
+            int quantity = InputValidator.ReadNonNegativeInt("Enter Quantity: ");
 
             Product product = new Product(nextProductId++, name, price, quantity);
             products.Add(product);
@@ -153,8 +143,7 @@ namespace ConsoleStoreApp
 
         static void SearchProducts()
         {
-            Console.Write("Enter product ID or name to search: ");
-            string query = Console.ReadLine()?.Trim() ?? "";
+            string query = InputValidator.ReadNonEmptyString("Enter product ID or name to search: ");
 
             if (string.IsNullOrWhiteSpace(query))
             {
@@ -202,28 +191,13 @@ namespace ConsoleStoreApp
             Console.WriteLine($"Updating '{product.Name}' (Press Enter to keep current value):");
 
             // Update Name
-            Console.Write($"New Name [{product.Name}]: ");
-            string nameInput = Console.ReadLine()?.Trim() ?? "";
-            if (!string.IsNullOrWhiteSpace(nameInput))
-            {
-                product.Name = nameInput;
-            }
+            product.Name = InputValidator.ReadNonEmptyString("Enter new Product Name: ");
 
             // Update Price
-            Console.Write($"New Price [{product.Price:C}]: ");
-            string priceInput = Console.ReadLine()?.Trim() ?? "";
-            if (!string.IsNullOrWhiteSpace(priceInput) && decimal.TryParse(priceInput, out decimal newPrice) && newPrice >= 0)
-            {
-                product.Price = newPrice;
-            }
+            product.Price = InputValidator.ReadNonNegativeDecimal("Enter New Price: ");
 
             // Update Quantity
-            Console.Write($"New Quantity [{product.Quantity}]: ");
-            string qtyInput = Console.ReadLine()?.Trim() ?? "";
-            if (!string.IsNullOrWhiteSpace(qtyInput) && int.TryParse(qtyInput, out int newQty) && newQty >= 0)
-            {
-                product.Quantity = newQty;
-            }
+            product.Quantity = InputValidator.ReadNonNegativeInt("Enter new Quantity: ");
 
             Console.WriteLine($"Product ID {id} updated successfully!");
         }
@@ -244,10 +218,7 @@ namespace ConsoleStoreApp
                 return;
             }
 
-            Console.Write($"Are you sure you want to delete '{product.Name}'? (y/n): ");
-            string confirm = Console.ReadLine()?.Trim().ToLower() ?? "";
-
-            if (confirm == "y" || confirm == "yes")
+            if (InputValidator.ReadConfirmation($"Are you sure you want to delete '{product.Name}'? (y/n): "))
             {
                 products.Remove(product);
                 Console.WriteLine($"Product '{product.Name}' deleted successfully.");
@@ -297,17 +268,10 @@ namespace ConsoleStoreApp
 
         static void AddCustomer()
         {
-            Console.Write("Enter Customer Name: ");
-            string name = Console.ReadLine()?.Trim() ?? "";
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                Console.WriteLine("Customer name cannot be empty.");
-                return;
-            }
+            string name = InputValidator.ReadNonEmptyString("Enter Customer Name: ");
 
-            Console.Write("Enter Email: ");
-            string email = Console.ReadLine()?.Trim() ?? "";
-            if (string.IsNullOrWhiteSpace(email) || !email.Contains("@"))
+            string email = InputValidator.ReadNonEmptyString("Enter Email: ");
+            if (!email.Contains("@"))
             {
                 Console.WriteLine("Invalid email address.");
                 return;
@@ -320,11 +284,10 @@ namespace ConsoleStoreApp
                 return;
             }
 
-            Console.Write("Enter Phone Number (digits only): ");
-            string phone = Console.ReadLine()?.Trim() ?? "";
+            string phone = InputValidator.ReadNonEmptyString("Enter Phone Number (digits only): ");
 
             // Validate phone number using string.All(char.IsDigit)
-            if (string.IsNullOrWhiteSpace(phone) || !phone.All(char.IsDigit))
+            if (!phone.All(char.IsDigit))
             {
                 Console.WriteLine("Invalid phone number! Must contain digits only.");
                 return;
@@ -462,9 +425,7 @@ namespace ConsoleStoreApp
 
                 Console.WriteLine($"Added {qty} x {product.Name} to order.");
 
-                Console.Write("Add another item? (y/n): ");
-                string resp = Console.ReadLine()?.Trim().ToLower() ?? "";
-                if (resp != "y" && resp != "yes")
+                if (InputValidator.ReadConfirmation("Add another item? (y/n): "))
                 {
                     addingItems = false;
                 }
