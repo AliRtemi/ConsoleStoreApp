@@ -6,6 +6,9 @@ namespace ConsoleStoreApp
     {
         private static List<Product> products = new List<Product>();
         private static int nextProductId = 1;
+
+        private static List<Customer> customers = new List<Customer>();
+        private static int nextCustomerId = 1;
         static void Main(string[] args)
         {
             bool exitRequested = false;
@@ -34,7 +37,7 @@ namespace ConsoleStoreApp
                         ManageProducts();
                         break;
                     case "2":
-                        Console.WriteLine("Customer management feature coming soon...");
+                        ManageCustomers();
                         break;
                     case "3":
                         Console.WriteLine("Order management feature coming soon...");
@@ -249,6 +252,106 @@ namespace ConsoleStoreApp
             else
             {
                 Console.WriteLine("Deletion cancelled.");
+            }
+        }
+
+        static void ManageCustomers()
+        {
+            bool back = false;
+            while (!back)
+            {
+                Console.Clear();
+                Console.WriteLine("--- Customer Management ---");
+                Console.WriteLine("1. Add Customer");
+                Console.WriteLine("2. List All Customers");
+                Console.WriteLine("0. Back to Main Menu");
+                Console.Write("Select an option: ");
+
+                string? choice = Console.ReadLine()?.Trim();
+                switch (choice)
+                {
+                    case "1":
+                        AddCustomer();
+                        break;
+                    case "2":
+                        ListCustomers();
+                        break;
+                    case "0":
+                        back = true;
+                        break;
+                    default:
+                        Console.WriteLine("Invalid option.");
+                        break;
+                }
+
+                if (!back)
+                {
+                    Console.WriteLine("\nPress any key to continue...");
+                    Console.ReadKey();
+                }
+            }
+        }
+
+        static void AddCustomer()
+        {
+            Console.Write("Enter Customer Name: ");
+            string name = Console.ReadLine()?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                Console.WriteLine("Customer name cannot be empty.");
+                return;
+            }
+
+            Console.Write("Enter Email: ");
+            string email = Console.ReadLine()?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(email) || !email.Contains("@"))
+            {
+                Console.WriteLine("Invalid email address.");
+                return;
+            }
+
+            // Check for duplicate Email using LINQ Any
+            if (customers.Any(c => c.Email.Equals(email, StringComparison.OrdinalIgnoreCase)))
+            {
+                Console.WriteLine("A customer with this email address already exists!");
+                return;
+            }
+
+            Console.Write("Enter Phone Number (digits only): ");
+            string phone = Console.ReadLine()?.Trim() ?? "";
+
+            // Validate phone number using string.All(char.IsDigit)
+            if (string.IsNullOrWhiteSpace(phone) || !phone.All(char.IsDigit))
+            {
+                Console.WriteLine("Invalid phone number! Must contain digits only.");
+                return;
+            }
+
+            // Check for duplicate Phone Number
+            if (customers.Any(c => c.PhoneNumber == phone))
+            {
+                Console.WriteLine("A customer with this phone number already exists!");
+                return;
+            }
+
+            Customer customer = new Customer(nextCustomerId++, name, email, phone);
+            customers.Add(customer);
+            Console.WriteLine($"Customer '{name}' added successfully with ID {customer.Id}.");
+        }
+
+        static void ListCustomers()
+        {
+            if (!customers.Any())
+            {
+                Console.WriteLine("No customers found.");
+                return;
+            }
+
+            Console.WriteLine("\nID  | Name                 | Email                     | Phone");
+            Console.WriteLine("------------------------------------------------------------------");
+            foreach (var c in customers)
+            {
+                Console.WriteLine($"{c.Id,-3} | {c.Name,-20} | {c.Email,-25} | {c.PhoneNumber}");
             }
         }
     }
