@@ -26,6 +26,7 @@ namespace ConsoleStoreApp
                 Console.WriteLine("1. Manage Products");
                 Console.WriteLine("2. Manage Customers");
                 Console.WriteLine("3. Manage Orders");
+                Console.WriteLine("4. Manage Reports");
                 Console.WriteLine("0. Exit");
                 Console.WriteLine("=================================");
                 Console.Write("Select an option: ");
@@ -44,6 +45,9 @@ namespace ConsoleStoreApp
                         break;
                     case "3":
                         ManageOrders();
+                        break;
+                    case "4":
+                        ManageReports();
                         break;
                     case "0":
                         Console.WriteLine("Thank you for using Console Store App. Goodbye!");
@@ -536,6 +540,158 @@ namespace ConsoleStoreApp
                 {
                     Console.WriteLine($"{p.Id,-3} | {p.Name,-20} | {p.Price,10:C} | {p.Quantity,3} | {p.TotalValue,11:C}");
                 }
+            }
+        }
+
+        static void ManageReports()
+        {
+            bool back = false;
+            while (!back)
+            {
+                Console.Clear();
+                Console.WriteLine("--- Reports & Statistics ---");
+                Console.WriteLine("1. Best Selling Products");
+                Console.WriteLine("2. Top Customers by Spending");
+                Console.WriteLine("3. Daily Sales Summary");
+                Console.WriteLine("4. Low Stock Inventory Alert");
+                Console.WriteLine("0. Back to Main Menu");
+                Console.Write("Select an option: ");
+
+                string? choice = Console.ReadLine()?.Trim();
+                switch (choice)
+                {
+                    case "1":
+                        GetTopSellingProducts();
+                        break;
+                    case "2":
+                        GetTopCustomers();
+                        break;
+                    case "3":
+                        GetDailySales();
+                        break;
+                    case "4":
+                        GetLowStockProducts();
+                        break;
+                    case "0":
+                        back = true;
+                        break;
+                    default:
+                        Console.WriteLine("Invalid option.");
+                        break;
+                }
+
+                if (!back)
+                {
+                    Console.WriteLine("\nPress any key to continue...");
+                    Console.ReadKey();
+                }
+            }
+        }
+
+        static void GetTopSellingProducts()
+        {
+            if (!orders.Any())
+            {
+                Console.WriteLine("No orders recorded yet.");
+                return;
+            }
+
+            // SelectMany flattens order line items across all orders
+            var topProducts = orders.SelectMany(o => o.Items)
+                .GroupBy(item => item.Product.Name)
+                .Select(g => new
+                {
+                    ProductName = g.Key,
+                    TotalQuantitySold = g.Sum(item => item.Quantity),
+                    TotalRevenue = g.Sum(item => item.TotalPrice)
+                })
+                .OrderByDescending(p => p.TotalQuantitySold)
+                .Take(5)
+                .ToList();
+
+            Console.WriteLine("\n--- Top 5 Best Selling Products ---");
+            Console.WriteLine("Product Name         | Total Qty Sold | Total Revenue");
+            Console.WriteLine("-----------------------------------------------------");
+            foreach (var p in topProducts)
+            {
+                Console.WriteLine($"{p.ProductName,-20} | {p.TotalQuantitySold,-14} | {p.TotalRevenue,13:C}");
+            }
+        }
+
+        static void GetTopCustomers()
+        {
+            if (!orders.Any())
+            {
+                Console.WriteLine("No orders recorded yet.");
+                return;
+            }
+
+            var topCustomers = orders
+                .GroupBy(o => o.Customer.Name)
+                .Select(g => new
+                {
+                    CustomerName = g.Key,
+                    OrderCount = g.Count(),
+                    TotalSpent = g.Sum(o => o.TotalAmount)
+                })
+                .OrderByDescending(c => c.TotalSpent)
+                .Take(5)
+                .ToList();
+
+            Console.WriteLine("\n--- Top Customers by Total Spending ---");
+            Console.WriteLine("Customer Name        | Orders Count | Total Spent");
+            Console.WriteLine("-------------------------------------------------");
+            foreach (var c in topCustomers)
+            {
+                Console.WriteLine($"{c.CustomerName,-20} | {c.OrderCount,-12} | {c.TotalSpent,11:C}");
+            }
+        }
+
+        static void GetDailySales()
+        {
+            if (!orders.Any())
+            {
+                Console.WriteLine("No orders recorded yet.");
+                return;
+            }
+
+            var dailySales = orders
+                .GroupBy(o => o.OrderDate.Date)
+                .Select(g => new
+                {
+                    Date = g.Key,
+                    TotalOrders = g.Count(),
+                    TotalRevenue = g.Sum(o => o.TotalAmount)
+                })
+                .OrderByDescending(d => d.Date)
+                .ToList();
+
+            Console.WriteLine("\n--- Daily Sales Summary ---");
+            Console.WriteLine("Date       | Total Orders | Total Revenue");
+            Console.WriteLine("-----------------------------------------");
+            foreach (var d in dailySales)
+            {
+                Console.WriteLine($"{d.Date:yyyy-MM-dd} | {d.TotalOrders,-12} | {d.TotalRevenue,13:C}");
+            }
+        }
+
+        static void GetLowStockProducts()
+        {
+            int threshold = 5;
+            var lowStock = products.Where(p => p.Quantity < threshold).ToList();
+
+            if (!lowStock.Any())
+            {
+                Console.WriteLine($"All products have sufficient stock (>= {threshold} items).");
+                return;
+            }
+
+            Console.WriteLine($"\n--- Low Stock Alert (< {threshold} items) ---");
+            Console.WriteLine("ID  | Product Name         | In Stock");
+            Console.WriteLine("-------------------------------------");
+            foreach (var p in lowStock)
+            {
+                Console.WriteLine($"{p.Id,-3} | {p.Name,-20} | {p.Quantity,8}");
             }
         }
     }
