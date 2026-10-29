@@ -26,50 +26,69 @@ namespace ConsoleStoreApp
 
             while (!exitRequested) 
             {
-                Console.Clear();
-
-                Console.WriteLine("----------------");
-                Console.WriteLine("Console store application");
-                Console.WriteLine("=================================");
-                Console.WriteLine("1. Manage Products");
-                Console.WriteLine("2. Manage Customers");
-                Console.WriteLine("3. Manage Orders");
-                Console.WriteLine("4. Manage Reports");
-                Console.WriteLine("0. Exit");
-                Console.WriteLine("=================================");
-                Console.Write("Select an option: ");
-
-                string? input = Console.ReadLine()?.Trim();
-
-                Console.WriteLine();
-
-                switch (input)
+                try
                 {
-                    case "1":
-                        ManageProducts();
-                        break;
-                    case "2":
-                        ManageCustomers();
-                        break;
-                    case "3":
-                        ManageOrders();
-                        break;
-                    case "4":
-                        ManageReports();
-                        break;
-                    case "0":
-                        Console.WriteLine("Thank you for using Console Store App. Goodbye!");
-                        exitRequested = true;
-                        break;
-                    default:
-                        Console.WriteLine("Invalid option! Please select a valid number from the menu.");
-                        break;
+                    Console.Clear();
+
+                    Console.WriteLine("----------------");
+                    Console.WriteLine("Console store application");
+                    Console.WriteLine("=================================");
+                    Console.WriteLine("1. Manage Products");
+                    Console.WriteLine("2. Manage Customers");
+                    Console.WriteLine("3. Manage Orders");
+                    Console.WriteLine("4. Manage Reports");
+                    Console.WriteLine("0. Exit");
+                    Console.WriteLine("=================================");
+                    Console.Write("Select an option: ");
+
+                    string? input = Console.ReadLine()?.Trim();
+
+                    Console.WriteLine();
+
+                    switch (input)
+                    {
+                        case "1":
+                            ManageProducts();
+                            break;
+                        case "2":
+                            ManageCustomers();
+                            break;
+                        case "3":
+                            ManageOrders();
+                            break;
+                        case "4":
+                            ManageReports();
+                            break;
+                        case "0":
+                            Console.WriteLine("Thank you for using Console Store App. Goodbye!");
+                            exitRequested = true;
+                            break;
+                        default:
+                            Console.WriteLine("Invalid option! Please select a valid number from the menu.");
+                            break;
+                    }
+
+                    if (!exitRequested)
+                    {
+                        Console.WriteLine("\nPress any key to return to the main menu...");
+                        Console.ReadKey();
+                    }
                 }
-
-                if (!exitRequested)
+                catch (EntityNotFoundException ex)
                 {
-                    Console.WriteLine("\nPress any key to return to the main menu...");
-                    Console.ReadKey();
+                    ConsoleHelper.WriteWarning(ex.Message);
+                }
+                catch (DuplicateEntityException ex)
+                {
+                    ConsoleHelper.WriteError(ex.Message);
+                }
+                catch (InsufficientStockException ex)
+                {
+                    ConsoleHelper.WriteError(ex.Message);
+                }
+                catch (Exception ex)
+                {
+                    ConsoleHelper.WriteError($"An unexpected error occurred: {ex.Message}");
                 }
             }
         }
@@ -138,7 +157,7 @@ namespace ConsoleStoreApp
 
             products.Add(product);
             DataManager.SaveData("products.json", products);
-            Console.WriteLine($"Product '{name}' added successfully with ID {product.Id}.");
+            ConsoleHelper.WriteSuccess($"Product '{name}' added successfully with ID {product.Id}.");
 
         }
 
@@ -195,19 +214,10 @@ namespace ConsoleStoreApp
 
         static void UpdateProduct()
         {
-            Console.Write("Enter Product ID to update: ");
-            if (!int.TryParse(Console.ReadLine(), out int id))
-            {
-                Console.WriteLine("Invalid Product ID.");
-                return;
-            }
+            int id = InputValidator.ReadNonNegativeInt("Enter Product ID to update: ");
 
-            Product? product = products.FirstOrDefault(p => p.Id == id);
-            if (product == null)
-            {
-                Console.WriteLine($"Product with ID {id} not found.");
-                return;
-            }
+            Product product = products.FirstOrDefault(p => p.Id == id)
+        ?? throw new EntityNotFoundException($"Product with ID {id} was not found.");
 
             Console.WriteLine($"Updating '{product.Name}' (Press Enter to keep current value):");
 
@@ -220,7 +230,7 @@ namespace ConsoleStoreApp
             // Update Quantity
             product.Quantity = InputValidator.ReadNonNegativeInt("Enter new Quantity: ");
 
-            Console.WriteLine($"Product ID {id} updated successfully!");
+            ConsoleHelper.WriteSuccess($"Product ID {id} updated successfully!");
 
             DataManager.SaveData("products.json", products);
         }
@@ -234,12 +244,8 @@ namespace ConsoleStoreApp
                 return;
             }
 
-            Product? product = products.FirstOrDefault(p => p.Id == id);
-            if (product == null)
-            {
-                Console.WriteLine($"Product with ID {id} not found.");
-                return;
-            }
+            Product product = products.FirstOrDefault(p => p.Id == id)
+                ?? throw new EntityNotFoundException($"Product with ID {id} was not found.");
 
             if (InputValidator.ReadConfirmation($"Are you sure you want to delete '{product.Name}'? (y/n): "))
             {
@@ -295,17 +301,10 @@ namespace ConsoleStoreApp
             string name = InputValidator.ReadNonEmptyString("Enter Customer Name: ");
 
             string email = InputValidator.ReadNonEmptyString("Enter Email: ");
-            if (!email.Contains("@"))
-            {
-                Console.WriteLine("Invalid email address.");
-                return;
-            }
 
-            // Check for duplicate Email using LINQ Any
             if (customers.Any(c => c.Email.Equals(email, StringComparison.OrdinalIgnoreCase)))
             {
-                Console.WriteLine("A customer with this email address already exists!");
-                return;
+                throw new DuplicateEntityException($"A customer with email '{email}' already exists.");
             }
 
             string phone = InputValidator.ReadNonEmptyString("Enter Phone Number (digits only): ");
@@ -320,14 +319,13 @@ namespace ConsoleStoreApp
             // Check for duplicate Phone Number
             if (customers.Any(c => c.PhoneNumber == phone))
             {
-                Console.WriteLine("A customer with this phone number already exists!");
-                return;
+                throw new DuplicateEntityException($"A customer with phone number '{phone}' already exists.");
             }
 
             Customer customer = new Customer(nextCustomerId++, name, email, phone);
             customers.Add(customer);
             DataManager.SaveData("customers.json", customers);
-            Console.WriteLine($"Customer '{name}' added successfully with ID {customer.Id}.");
+            ConsoleHelper.WriteSuccess($"Customer '{name}' added successfully with ID {customer.Id}.");
         }
 
         static void ListCustomers()
@@ -351,34 +349,41 @@ namespace ConsoleStoreApp
             bool back = false;
             while (!back)
             {
-                Console.Clear();
-                Console.WriteLine("--- Order Management ---");
-                Console.WriteLine("1. Create New Order");
-                Console.WriteLine("2. List All Orders");
-                Console.WriteLine("0. Back to Main Menu");
-                Console.Write("Select an option: ");
-
-                string? choice = Console.ReadLine()?.Trim();
-                switch (choice)
+                try
                 {
-                    case "1":
-                        CreateOrder();
-                        break;
-                    case "2":
-                        ListOrders();
-                        break;
-                    case "0":
-                        back = true;
-                        break;
-                    default:
-                        Console.WriteLine("Invalid option.");
-                        break;
+                    Console.Clear();
+                    Console.WriteLine("--- Order Management ---");
+                    Console.WriteLine("1. Create New Order");
+                    Console.WriteLine("2. List All Orders");
+                    Console.WriteLine("0. Back to Main Menu");
+                    Console.Write("Select an option: ");
+
+                    string? choice = Console.ReadLine()?.Trim();
+                    switch (choice)
+                    {
+                        case "1":
+                            CreateOrder();
+                            break;
+                        case "2":
+                            ListOrders();
+                            break;
+                        case "0":
+                            back = true;
+                            break;
+                        default:
+                            Console.WriteLine("Invalid option.");
+                            break;
+                    }
+
+                    if (!back)
+                    {
+                        Console.WriteLine("\nPress any key to continue...");
+                        Console.ReadKey();
+                    }
                 }
-
-                if (!back)
+                catch (Exception ex)
                 {
-                    Console.WriteLine("\nPress any key to continue...");
-                    Console.ReadKey();
+                    ConsoleHelper.WriteError($"An unexpected error occurred: {ex.Message}");
                 }
             }
         }
@@ -405,12 +410,8 @@ namespace ConsoleStoreApp
                 return;
             }
 
-            Customer? customer = customers.FirstOrDefault(c => c.Id == customerId);
-            if (customer == null)
-            {
-                Console.WriteLine($"Customer with ID {customerId} not found.");
-                return;
-            }
+            Customer customer = customers.FirstOrDefault(c => c.Id == customerId)
+                ?? throw new EntityNotFoundException($"Customer with ID {customerId} was not found.");
 
             Order newOrder = new Order(nextOrderId++, customer);
             bool addingItems = true;
@@ -440,15 +441,14 @@ namespace ConsoleStoreApp
                 // Business Rule: Check stock availability
                 if (qty > product.Quantity)
                 {
-                    Console.WriteLine($"Insufficient stock! Only {product.Quantity} available.");
-                    continue;
+                    throw new InsufficientStockException($"Insufficient stock! Only {product.Quantity} items available for '{product.Name}'.");
                 }
 
                 // Add item to order & reduce inventory stock
                 newOrder.Items.Add(new OrderItem(product, qty));
                 product.Quantity -= qty;
 
-                Console.WriteLine($"Added {qty} x {product.Name} to order.");
+                ConsoleHelper.WriteSuccess($"Added {qty} x {product.Name} to order.");
 
                 if (!InputValidator.ReadConfirmation("Add another item? (y/n): "))
                 {
