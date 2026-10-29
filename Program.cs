@@ -440,13 +440,34 @@ namespace ConsoleStoreApp
 
             if (newOrder.Items.Any())
             {
+                Console.Write("\nDo you have a promo code? (e.g. SAVE10) Press Enter to skip: ");
+                string? code = Console.ReadLine()?.Trim().ToUpper();
+
+                switch (code)
+                {
+                    case "SAVE10":
+                        newOrder.DiscountPercentage = 10;
+                        Console.WriteLine("Promo code applied: 10% OFF your order!");
+                        break;
+                    case "SUPER20":
+                        newOrder.DiscountPercentage = 20;
+                        Console.WriteLine("Promo code applied: 20% OFF your order!");
+                        break;
+                    case "":
+                        break;
+                    default:
+                        Console.WriteLine("Invalid promo code. Proceeding without order discount.");
+                        break;
+                }
+
                 orders.Add(newOrder);
                 Console.WriteLine($"\nOrder #{newOrder.Id} created successfully for {customer.Name}!");
-                Console.WriteLine($"Total Amount: {newOrder.TotalAmount:C}");
-            }
-            else
-            {
-                Console.WriteLine("Order cancelled (no items added).");
+                Console.WriteLine($"Subtotal: {newOrder.SubTotal:C}");
+                if (newOrder.DiscountPercentage > 0)
+                {
+                    Console.WriteLine($"Discount ({newOrder.DiscountPercentage}%): -{newOrder.DiscountAmount:C}");
+                }
+                Console.WriteLine($"Final Total: {newOrder.TotalAmount:C}");
             }
         }
 

@@ -14,7 +14,7 @@ namespace ConsoleStoreApp
         {
             Product = product;
             Quantity = quantity;
-            UnitPrice = product.Price;
+            UnitPrice = product.EffectivePrice; // Uses discounted unit price
         }
 
         public decimal TotalPrice => UnitPrice * Quantity;
