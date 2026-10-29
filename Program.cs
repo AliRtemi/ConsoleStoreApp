@@ -12,8 +12,16 @@ namespace ConsoleStoreApp
 
         private static List<Order> orders = new List<Order>();
         private static int nextOrderId = 1;
+
+        private const string ProductsFilePath = "products.json";
+        private const string CustomersFilePath = "customers.json";
+        private const string OrdersFilePath = "orders.json";
         static void Main(string[] args)
         {
+            products = DataManager.LoadData<Product>(ProductsFilePath);
+            customers = DataManager.LoadData<Customer>(CustomersFilePath);
+            orders = DataManager.LoadData<Order>(OrdersFilePath);
+
             bool exitRequested = false;
 
             while (!exitRequested) 
@@ -129,7 +137,9 @@ namespace ConsoleStoreApp
             Product product = new Product(nextProductId++, name, price, quantity, category);
 
             products.Add(product);
+            DataManager.SaveData("products.json", products);
             Console.WriteLine($"Product '{name}' added successfully with ID {product.Id}.");
+
         }
 
         static void ListProducts()
@@ -211,6 +221,8 @@ namespace ConsoleStoreApp
             product.Quantity = InputValidator.ReadNonNegativeInt("Enter new Quantity: ");
 
             Console.WriteLine($"Product ID {id} updated successfully!");
+
+            DataManager.SaveData("products.json", products);
         }
 
         static void DeleteProduct()
@@ -232,6 +244,7 @@ namespace ConsoleStoreApp
             if (InputValidator.ReadConfirmation($"Are you sure you want to delete '{product.Name}'? (y/n): "))
             {
                 products.Remove(product);
+                DataManager.SaveData("products.json", products);
                 Console.WriteLine($"Product '{product.Name}' deleted successfully.");
             }
             else
@@ -313,6 +326,7 @@ namespace ConsoleStoreApp
 
             Customer customer = new Customer(nextCustomerId++, name, email, phone);
             customers.Add(customer);
+            DataManager.SaveData("customers.json", customers);
             Console.WriteLine($"Customer '{name}' added successfully with ID {customer.Id}.");
         }
 
@@ -465,6 +479,8 @@ namespace ConsoleStoreApp
                 }
 
                 orders.Add(newOrder);
+                DataManager.SaveData("orders.json", orders);
+                DataManager.SaveData("products.json", products);
                 Console.WriteLine($"\nOrder #{newOrder.Id} created successfully for {customer.Name}!");
                 Console.WriteLine($"Subtotal: {newOrder.SubTotal:C}");
                 if (newOrder.DiscountPercentage > 0)
