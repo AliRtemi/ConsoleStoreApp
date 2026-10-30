@@ -2,7 +2,7 @@
 
 namespace ConsoleStoreApp
 {
-    internal class Program
+    public class Program
     {
         private static List<Product> products = new List<Product>();
         private static int nextProductId = 1;
@@ -16,11 +16,23 @@ namespace ConsoleStoreApp
         private const string ProductsFilePath = "products.json";
         private const string CustomersFilePath = "customers.json";
         private const string OrdersFilePath = "orders.json";
+
+        private static IProductService productService = null!;
+        private static ICustomerService customerService = null!;
+        private static IOrderService orderService = null!;
         static void Main(string[] args)
         {
+            var products = DataManager.LoadData<Product>("products.json");
+            var customers = DataManager.LoadData<Customer>("customers.json");
+            var orders = DataManager.LoadData<Order>("orders.json");
+
             products = DataManager.LoadData<Product>(ProductsFilePath);
             customers = DataManager.LoadData<Customer>(CustomersFilePath);
             orders = DataManager.LoadData<Order>(OrdersFilePath);
+
+            productService = new ProductService(products);
+            customerService = new CustomerService(customers);
+            orderService = new OrderService(orders, productService, customerService);
 
             bool exitRequested = false;
 
@@ -150,20 +162,19 @@ namespace ConsoleStoreApp
             string name = InputValidator.ReadNonEmptyString("Enter Product Name: ");
             decimal price = InputValidator.ReadNonNegativeDecimal("Enter Price: ");
             int quantity = InputValidator.ReadNonNegativeInt("Enter Quantity: ");
-
             ProductCategory category = PromptCategory();
 
-            Product product = new Product(nextProductId++, name, price, quantity, category);
-
-            products.Add(product);
-            DataManager.SaveData("products.json", products);
-            ConsoleHelper.WriteSuccess($"Product '{name}' added successfully with ID {product.Id}.");
+            // Delegate creation & saving to ProductService
+            productService.AddProduct(name, price, quantity, category);
+            ConsoleHelper.WriteSuccess($"Product '{name}' added successfully.");
 
         }
 
         static void ListProducts()
         {
-            if (!products.Any())
+            var allProducts = productService.GetAllProducts();
+
+            if (!allProducts.Any())
             {
                 Console.WriteLine("No products found.");
                 return;
@@ -171,12 +182,12 @@ namespace ConsoleStoreApp
 
             Console.WriteLine("\nID  | Name                 | Category    | Price      | Qty | Total Value");
             Console.WriteLine("-------------------------------------------------------------------------");
-            foreach (var p in products)
+            foreach (var p in allProducts)
             {
                 Console.WriteLine($"{p.Id,-3} | {p.Name,-20} | {p.Category,-11} | {p.Price,10:C} | {p.Quantity,3} | {p.TotalValue,11:C}");
             }
 
-            decimal totalInventoryValue = products.Sum(p => p.TotalValue);
+            decimal totalInventoryValue = allProducts.Sum(p => p.TotalValue);
             Console.WriteLine("-----------------------------------------------------------");
             Console.WriteLine($"Total Inventory Value: {totalInventoryValue:C}");
         }
@@ -185,17 +196,7 @@ namespace ConsoleStoreApp
         {
             string query = InputValidator.ReadNonEmptyString("Enter product ID or name to search: ");
 
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                Console.WriteLine("Search term cannot be empty.");
-                return;
-            }
-
-            // Search by ID or partial Name (case-insensitive)
-            var results = products.Where(p =>
-                p.Id.ToString() == query ||
-                p.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
-            ).ToList();
+            var results = productService.SearchProducts(query);
 
             if (!results.Any())
             {
@@ -203,10 +204,10 @@ namespace ConsoleStoreApp
                 return;
             }
 
-            Console.WriteLine($"\nFound {results.Count} matching product(s):");
+            Console.WriteLine($"\nFound {results.Count()} matching product(s):");
             Console.WriteLine("ID  | Name                 | Category    | Price      | Qty | Total Value");
             Console.WriteLine("-------------------------------------------------------------------------");
-            foreach (var p in products)
+            foreach (var p in results)
             {
                 Console.WriteLine($"{p.Id,-3} | {p.Name,-20} | {p.Category,-11} | {p.Price,10:C} | {p.Quantity,3} | {p.TotalValue,11:C}");
             }
@@ -216,42 +217,29 @@ namespace ConsoleStoreApp
         {
             int id = InputValidator.ReadNonNegativeInt("Enter Product ID to update: ");
 
-            Product product = products.FirstOrDefault(p => p.Id == id)
-        ?? throw new EntityNotFoundException($"Product with ID {id} was not found.");
+            // Fetch product to display current name
+            Product current = productService.GetProductById(id);
 
-            Console.WriteLine($"Updating '{product.Name}' (Press Enter to keep current value):");
+            Console.WriteLine($"Updating '{current.Name}':");
+            string name = InputValidator.ReadNonEmptyString("Enter new Product Name: ");
+            decimal price = InputValidator.ReadNonNegativeDecimal("Enter New Price: ");
+            int quantity = InputValidator.ReadNonNegativeInt("Enter new Quantity: ");
 
-            // Update Name
-            product.Name = InputValidator.ReadNonEmptyString("Enter new Product Name: ");
-
-            // Update Price
-            product.Price = InputValidator.ReadNonNegativeDecimal("Enter New Price: ");
-
-            // Update Quantity
-            product.Quantity = InputValidator.ReadNonNegativeInt("Enter new Quantity: ");
-
+            // Delegate update & saving to ProductService
+            productService.UpdateProduct(id, name, price, quantity);
             ConsoleHelper.WriteSuccess($"Product ID {id} updated successfully!");
-
-            DataManager.SaveData("products.json", products);
         }
 
         static void DeleteProduct()
         {
-            Console.Write("Enter Product ID to delete: ");
-            if (!int.TryParse(Console.ReadLine(), out int id))
-            {
-                Console.WriteLine("Invalid Product ID.");
-                return;
-            }
+            int id = InputValidator.ReadNonNegativeInt("Enter Product ID to delete: ");
 
-            Product product = products.FirstOrDefault(p => p.Id == id)
-                ?? throw new EntityNotFoundException($"Product with ID {id} was not found.");
+            Product product = productService.GetProductById(id);
 
             if (InputValidator.ReadConfirmation($"Are you sure you want to delete '{product.Name}'? (y/n): "))
             {
-                products.Remove(product);
-                DataManager.SaveData("products.json", products);
-                Console.WriteLine($"Product '{product.Name}' deleted successfully.");
+                productService.DeleteProduct(id);
+                ConsoleHelper.WriteSuccess($"Product '{product.Name}' deleted successfully.");
             }
             else
             {
@@ -299,38 +287,24 @@ namespace ConsoleStoreApp
         static void AddCustomer()
         {
             string name = InputValidator.ReadNonEmptyString("Enter Customer Name: ");
-
             string email = InputValidator.ReadNonEmptyString("Enter Email: ");
-
-            if (customers.Any(c => c.Email.Equals(email, StringComparison.OrdinalIgnoreCase)))
-            {
-                throw new DuplicateEntityException($"A customer with email '{email}' already exists.");
-            }
-
             string phone = InputValidator.ReadNonEmptyString("Enter Phone Number (digits only): ");
 
-            // Validate phone number using string.All(char.IsDigit)
             if (!phone.All(char.IsDigit))
             {
                 Console.WriteLine("Invalid phone number! Must contain digits only.");
                 return;
             }
 
-            // Check for duplicate Phone Number
-            if (customers.Any(c => c.PhoneNumber == phone))
-            {
-                throw new DuplicateEntityException($"A customer with phone number '{phone}' already exists.");
-            }
-
-            Customer customer = new Customer(nextCustomerId++, name, email, phone);
-            customers.Add(customer);
-            DataManager.SaveData("customers.json", customers);
-            ConsoleHelper.WriteSuccess($"Customer '{name}' added successfully with ID {customer.Id}.");
+            customerService.AddCustomer(name, email, phone);
+            ConsoleHelper.WriteSuccess($"Customer '{name}' added successfully.");
         }
 
         static void ListCustomers()
         {
-            if (!customers.Any())
+            var customerList = customerService.GetAllCustomers();
+
+            if (!customerList.Any())
             {
                 Console.WriteLine("No customers found.");
                 return;
@@ -338,7 +312,7 @@ namespace ConsoleStoreApp
 
             Console.WriteLine("\nID  | Name                 | Email                     | Phone");
             Console.WriteLine("------------------------------------------------------------------");
-            foreach (var c in customers)
+            foreach (var c in customerList)
             {
                 Console.WriteLine($"{c.Id,-3} | {c.Name,-20} | {c.Email,-25} | {c.PhoneNumber}");
             }
@@ -493,13 +467,15 @@ namespace ConsoleStoreApp
 
         static void ListOrders()
         {
-            if (!orders.Any())
+            var orderList = orderService.GetAllOrders();
+
+            if (!orderList.Any())
             {
                 Console.WriteLine("No orders placed yet.");
                 return;
             }
 
-            foreach (var order in orders)
+            foreach (var order in orderList)
             {
                 Console.WriteLine($"\n==========================================");
                 Console.WriteLine($"Order #{order.Id} | Date: {order.OrderDate:g}");
@@ -538,16 +514,15 @@ namespace ConsoleStoreApp
 
         static void ListProductsGroupedByCategory()
         {
-            if (!products.Any())
+            var groups = productService.GetProductsGroupedByCategory();
+
+            if (!groups.Any())
             {
                 Console.WriteLine("No products found.");
                 return;
             }
 
-            // Grouping products by Category using LINQ GroupBy
-            var groupedProducts = products.GroupBy(p => p.Category);
-
-            foreach (var group in groupedProducts)
+            foreach (var group in groups)
             {
                 Console.WriteLine($"\n=== Category: {group.Key} ===");
                 Console.WriteLine("ID  | Name                 | Price      | Qty | Total Value");

@@ -4,7 +4,7 @@ using System.Text;
 
 namespace ConsoleStoreApp
 {
-    internal class Order
+    public class Order
     {
         public int Id { get; set; }
         public Customer Customer { get; set; }
