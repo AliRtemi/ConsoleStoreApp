@@ -4,35 +4,17 @@ namespace ConsoleStoreApp
 {
     public class Program
     {
-        private static List<Product> products = new List<Product>();
-        private static int nextProductId = 1;
-
-        private static List<Customer> customers = new List<Customer>();
-        private static int nextCustomerId = 1;
-
-        private static List<Order> orders = new List<Order>();
-        private static int nextOrderId = 1;
-
-        private const string ProductsFilePath = "products.json";
-        private const string CustomersFilePath = "customers.json";
-        private const string OrdersFilePath = "orders.json";
-
         private static IProductService productService = null!;
         private static ICustomerService customerService = null!;
         private static IOrderService orderService = null!;
         static void Main(string[] args)
         {
-            var products = DataManager.LoadData<Product>("products.json");
-            var customers = DataManager.LoadData<Customer>("customers.json");
-            var orders = DataManager.LoadData<Order>("orders.json");
+            string connectionString = "Server=PC-ALLO;Database=StoreDb;Trusted_Connection=True;TrustServerCertificate=True;";
 
-            products = DataManager.LoadData<Product>(ProductsFilePath);
-            customers = DataManager.LoadData<Customer>(CustomersFilePath);
-            orders = DataManager.LoadData<Order>(OrdersFilePath);
-
-            productService = new ProductService(products);
-            customerService = new CustomerService(customers);
-            orderService = new OrderService(orders, productService, customerService);
+            // Inject the ADO.NET connection string into service constructors
+            productService = new ProductServiceAdo(connectionString);
+            customerService = new CustomerServiceAdo(connectionString);
+            orderService = new OrderServiceAdo(connectionString);
 
             bool exitRequested = false;
 
@@ -364,105 +346,36 @@ namespace ConsoleStoreApp
 
         static void CreateOrder()
         {
-            if (!customers.Any())
-            {
-                Console.WriteLine("No customers found! Add a customer before creating an order.");
-                return;
-            }
+            int customerId = InputValidator.ReadNonNegativeInt("Enter Customer ID: ");
 
-            if (!products.Any(p => p.Quantity > 0))
-            {
-                Console.WriteLine("No products in stock!");
-                return;
-            }
-
-            // Select Customer
-            Console.Write("Enter Customer ID for the order: ");
-            if (!int.TryParse(Console.ReadLine(), out int customerId))
-            {
-                Console.WriteLine("Invalid Customer ID.");
-                return;
-            }
-
-            Customer customer = customers.FirstOrDefault(c => c.Id == customerId)
-                ?? throw new EntityNotFoundException($"Customer with ID {customerId} was not found.");
-
-            Order newOrder = new Order(nextOrderId++, customer);
+            var itemsToBuy = new List<(int productId, int quantity)>();
             bool addingItems = true;
 
             while (addingItems)
             {
-                Console.Write("\nEnter Product ID to add to order (or 0 to finish): ");
-                if (!int.TryParse(Console.ReadLine(), out int productId) || productId == 0)
-                {
-                    break;
-                }
+                int productId = InputValidator.ReadNonNegativeInt("\nEnter Product ID to add (or 0 to finish): ");
+                if (productId == 0) break;
 
-                Product? product = products.FirstOrDefault(p => p.Id == productId);
-                if (product == null)
-                {
-                    Console.WriteLine("Product not found.");
-                    continue;
-                }
+                int qty = InputValidator.ReadNonNegativeInt("Enter Quantity: ");
+                itemsToBuy.Add((productId, qty));
 
-                Console.Write($"Enter Quantity for '{product.Name}' (In stock: {product.Quantity}): ");
-                if (!int.TryParse(Console.ReadLine(), out int qty) || qty <= 0)
-                {
-                    Console.WriteLine("Invalid quantity.");
-                    continue;
-                }
-
-                // Business Rule: Check stock availability
-                if (qty > product.Quantity)
-                {
-                    throw new InsufficientStockException($"Insufficient stock! Only {product.Quantity} items available for '{product.Name}'.");
-                }
-
-                // Add item to order & reduce inventory stock
-                newOrder.Items.Add(new OrderItem(product, qty));
-                product.Quantity -= qty;
-
-                ConsoleHelper.WriteSuccess($"Added {qty} x {product.Name} to order.");
-
-                if (!InputValidator.ReadConfirmation("Add another item? (y/n): "))
+                if (!InputValidator.ReadConfirmation("Add another product? (y/n): "))
                 {
                     addingItems = false;
                 }
             }
 
-            if (newOrder.Items.Any())
+            if (!itemsToBuy.Any())
             {
-                Console.Write("\nDo you have a promo code? (e.g. SAVE10) Press Enter to skip: ");
-                string? code = Console.ReadLine()?.Trim().ToUpper();
-
-                switch (code)
-                {
-                    case "SAVE10":
-                        newOrder.DiscountPercentage = 10;
-                        Console.WriteLine("Promo code applied: 10% OFF your order!");
-                        break;
-                    case "SUPER20":
-                        newOrder.DiscountPercentage = 20;
-                        Console.WriteLine("Promo code applied: 20% OFF your order!");
-                        break;
-                    case "":
-                        break;
-                    default:
-                        Console.WriteLine("Invalid promo code. Proceeding without order discount.");
-                        break;
-                }
-
-                orders.Add(newOrder);
-                DataManager.SaveData("orders.json", orders);
-                DataManager.SaveData("products.json", products);
-                Console.WriteLine($"\nOrder #{newOrder.Id} created successfully for {customer.Name}!");
-                Console.WriteLine($"Subtotal: {newOrder.SubTotal:C}");
-                if (newOrder.DiscountPercentage > 0)
-                {
-                    Console.WriteLine($"Discount ({newOrder.DiscountPercentage}%): -{newOrder.DiscountAmount:C}");
-                }
-                Console.WriteLine($"Final Total: {newOrder.TotalAmount:C}");
+                Console.WriteLine("Order cancelled (no items added).");
+                return;
             }
+
+            Console.Write("\nEnter Promo Code (or press Enter to skip): ");
+            string? promoCode = Console.ReadLine()?.Trim();
+
+            orderService.CreateOrder(customerId, itemsToBuy, promoCode);
+            ConsoleHelper.WriteSuccess("Order placed successfully!");
         }
 
         static void ListOrders()
@@ -581,14 +494,15 @@ namespace ConsoleStoreApp
 
         static void GetTopSellingProducts()
         {
-            if (!orders.Any())
+            var allOrders = orderService.GetAllOrders();
+
+            if (!allOrders.Any())
             {
                 Console.WriteLine("No orders recorded yet.");
                 return;
             }
 
-            // SelectMany flattens order line items across all orders
-            var topProducts = orders.SelectMany(o => o.Items)
+            var topProducts = allOrders.SelectMany(o => o.Items)
                 .GroupBy(item => item.Product.Name)
                 .Select(g => new
                 {
@@ -611,13 +525,15 @@ namespace ConsoleStoreApp
 
         static void GetTopCustomers()
         {
-            if (!orders.Any())
+            var allOrders = orderService.GetAllOrders();
+
+            if (!allOrders.Any())
             {
                 Console.WriteLine("No orders recorded yet.");
                 return;
             }
 
-            var topCustomers = orders
+            var topCustomers = allOrders
                 .GroupBy(o => o.Customer.Name)
                 .Select(g => new
                 {
@@ -640,13 +556,15 @@ namespace ConsoleStoreApp
 
         static void GetDailySales()
         {
-            if (!orders.Any())
+            var allOrders = orderService.GetAllOrders();
+
+            if (!allOrders.Any())
             {
                 Console.WriteLine("No orders recorded yet.");
                 return;
             }
 
-            var dailySales = orders
+            var dailySales = allOrders
                 .GroupBy(o => o.OrderDate.Date)
                 .Select(g => new
                 {
@@ -669,7 +587,8 @@ namespace ConsoleStoreApp
         static void GetLowStockProducts()
         {
             int threshold = 5;
-            var lowStock = products.Where(p => p.Quantity < threshold).ToList();
+            var allProducts = productService.GetAllProducts();
+            var lowStock = allProducts.Where(p => p.Quantity < threshold).ToList();
 
             if (!lowStock.Any())
             {
